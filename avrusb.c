@@ -682,8 +682,8 @@ extern void func_test(uint16_t addr);
 struct gc_state {
     uint8_t buttons_0;
     uint8_t buttons_1;
-    int8_t joy_x;
-    int8_t joy_y;
+    uint8_t joy_x;
+    uint8_t joy_y;
     int8_t c_x;
     int8_t c_y;
     int8_t l;
@@ -745,10 +745,6 @@ int main(void)
     controller_probe();
 
     for (;;) {
-#if 0
-        controller_probe();
-        _delay_ms(12);
-#else
         controller_poll((uint16_t)&controller_buffer);
 
         if (controller_buffer[0] != 0x11) {
@@ -779,14 +775,10 @@ int main(void)
         process_gc_data(controller_buffer, (void *)&gc_state);
 
         joypad_report.buttons = gc_state.buttons_0;
-        joypad_report.x = gc_state.joy_x + 127;
-        joypad_report.y = gc_state.joy_y + 127;
+        joypad_report.x = - 127 + gc_state.joy_x;
+        joypad_report.y = 127 - gc_state.joy_y;
 
-        /*
-        joypad_report.x = 0;
-        joypad_report.y = -50;
-        */
-        //printf("%d\n", gc_state.joy_x);
+        printf("%u\n", gc_state.joy_x);
 
         usb_joypad_send();
         _delay_ms(10);
