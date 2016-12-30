@@ -261,6 +261,10 @@ enum usages {
     GAME_PAD    = 0x05,
     X           = 0x30,
     Y           = 0x31,
+    Z           = 0x32,
+    RX          = 0x33,
+    RY          = 0x34,
+    RZ          = 0x35,
 };
 
 enum inptu_bits_0 {
@@ -326,9 +330,20 @@ static const uint8_t joypad_report_desc[] = {
             REPORT_COUNT(1)
             INPUT(CONST, VARIABLE, ABSOLUTE)
 
+            /* Main joystick */
             USAGE_PAGE(GENERIC_DESKTOP)
             USAGE(X)
             USAGE(Y)
+            LOGICAL_MINIMUM(-127)
+            LOGICAL_MAXIMUM(127)
+            REPORT_SIZE(8)
+            REPORT_COUNT(2)
+            INPUT(DATA, VARIABLE, ABSOLUTE)
+
+            /* The C joystick */
+            USAGE_PAGE(GENERIC_DESKTOP)
+            USAGE(Z)
+            USAGE(RX)
             LOGICAL_MINIMUM(-127)
             LOGICAL_MAXIMUM(127)
             REPORT_SIZE(8)
@@ -344,6 +359,8 @@ static volatile struct joypad_report {
     uint8_t buttons_1;
     uint8_t x;
     uint8_t y;
+    uint8_t cx;
+    uint8_t cy;
 } __attribute__((packed)) joypad_report;
 
 static const struct usb_config_desc_final {
@@ -839,6 +856,8 @@ int main(void)
         joypad_report.buttons_1 = gc_state.buttons_1;
         joypad_report.x = - 127 + gc_state.joy_x;
         joypad_report.y = 127 - gc_state.joy_y;
+        joypad_report.cx = - 127 + gc_state.c_x;
+        joypad_report.cy = 127 - gc_state.c_y;
 
         printf("%u\n", gc_state.joy_x);
 
