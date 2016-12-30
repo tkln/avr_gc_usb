@@ -296,6 +296,7 @@ static const uint8_t joypad_report_desc[] = {
     USAGE(GAME_PAD)
     COLLECTION(APPLICATION)
         COLLECTION(PHYSICAL)
+            /* Buttons in the first byte */
             USAGE_PAGE(BUTTON)
             USAGE_MINIMUM(1)
             USAGE_MAXIMUM(5)
@@ -305,7 +306,23 @@ static const uint8_t joypad_report_desc[] = {
             REPORT_SIZE(1)
             INPUT(DATA, VARIABLE, ABSOLUTE)
 
+            /* Padding bits */
             REPORT_SIZE(3)
+            REPORT_COUNT(1)
+            INPUT(CONST, VARIABLE, ABSOLUTE)
+
+            /* Buttons from the second byte */
+            USAGE_PAGE(BUTTON)
+            USAGE_MINIMUM(6)
+            USAGE_MAXIMUM(12)
+            LOGICAL_MINIMUM(0)
+            LOGICAL_MAXIMUM(1)
+            REPORT_COUNT(7)
+            REPORT_SIZE(1)
+            INPUT(DATA, VARIABLE, ABSOLUTE)
+
+            /* Padding */
+            REPORT_SIZE(1)
             REPORT_COUNT(1)
             INPUT(CONST, VARIABLE, ABSOLUTE)
 
@@ -323,7 +340,8 @@ static const uint8_t joypad_report_desc[] = {
 
 
 static volatile struct joypad_report {
-    uint8_t buttons;
+    uint8_t buttons_0;
+    uint8_t buttons_1;
     uint8_t x;
     uint8_t y;
 } __attribute__((packed)) joypad_report;
@@ -775,7 +793,7 @@ int main(void)
 
     joypad_report.x = 0xff;
     joypad_report.y = 0x55;
-    joypad_report.buttons = 0xff;
+    joypad_report.buttons_0 = 0xff;
 
 
     usb_init();
@@ -817,7 +835,8 @@ int main(void)
 
         process_gc_data(controller_buffer, (void *)&gc_state);
 
-        joypad_report.buttons = gc_state.buttons_0;
+        joypad_report.buttons_0 = gc_state.buttons_0;
+        joypad_report.buttons_1 = gc_state.buttons_1;
         joypad_report.x = - 127 + gc_state.joy_x;
         joypad_report.y = 127 - gc_state.joy_y;
 
