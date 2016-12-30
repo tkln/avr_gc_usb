@@ -71,6 +71,7 @@ static inline void halt(void)
         ;
 }
 
+#if 0
 static volatile uint8_t usb_configuration = 0;
 static volatile uint8_t idle_config = 125;
 static volatile uint8_t idle_count = 0;
@@ -224,7 +225,6 @@ enum usb_config_desc_attrs {
     USB_CFG_ATTR_REMOTE_WAKEUP = 5,
 };
 
-
 enum usb_base_class {
     USB_HID_DEVICE_CLASS = 0x03
 };
@@ -248,36 +248,6 @@ struct usb_endpoint_desc {
     uint8_t interval;
 } __attribute__((packed));
 
-
-/*
-uint8_t joypad_report_desc[] = {
-    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
-    0x09, 0x04,                    // USAGE (Joystick)
-    0xa1, 0x01,                    // COLLECTION (Application)
-    0x15, 0x81,                    //   LOGICAL_MINIMUM (-127)
-    0x25, 0x7f,                    //   LOGICAL_MAXIMUM (127)
-    0x05, 0x01,                    //   USAGE_PAGE (Generic Desktop)
-    0x09, 0x01,                    //   USAGE (Pointer)
-    0xa1, 0x00,                    //   COLLECTION (Physical)
-    0x09, 0x30,                    //     USAGE (X)
-    0x09, 0x31,                    //     USAGE (Y)
-    0x75, 0x08,                    //     REPORT_SIZE (8)
-    0x95, 0x02,                    //     REPORT_COUNT (2)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0xc0,                          //     END_COLLECTION
-    0x05, 0x09,                    //   USAGE_PAGE (Button)
-    0x19, 0x01,                    //   USAGE_MINIMUM (Button 1)
-    0x29, 0x08,                    //   USAGE_MAXIMUM (Button 8)
-    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
-    0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
-    0x75, 0x01,                    //   REPORT_SIZE (1)
-    0x95, 0x08,                    //   REPORT_COUNT (8)
-    0x55, 0x00,                    //   UNIT_EXPONENT (0)
-    0x65, 0x00,                    //   UNIT (None)
-    0x81, 0x02,                    //   INPUT (Data,Var,Abs)
-    0xc0                           // END_COLLECTION
-};
-*/
 
 static const uint8_t joypad_report_desc[] = {
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
@@ -305,11 +275,11 @@ static const uint8_t joypad_report_desc[] = {
 };
 
 
-struct joypad_report {
+static volatile struct joypad_report {
+    uint8_t buttons;
     int8_t x;
     int8_t y;
-    uint8_t buttons;
-} __attribute__((packed));
+} __attribute__((packed)) joypad_report;
 
 static const struct usb_config_desc_final {
     struct usb_config_desc config; 
@@ -419,7 +389,13 @@ static inline void usb_fifo_read(unsigned char *dest, size_t sz)
         *(dest++) = UEDATX;
 }
 
-static inline void usb_fifo_write(const unsigned char *src, size_t sz)
+static inline void usb_fifo_write(const unsigned char *src, uint8_t sz)
+{
+    while (sz--)
+        UEDATX = *(src++);
+}
+
+static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
 {
 #if 0
     while (sz--) 
@@ -432,8 +408,14 @@ static inline void usb_fifo_write(const unsigned char *src, size_t sz)
         } while (!(i & ((1<<TXINI) | (1<<RXOUTI))));
         if (i & (1<<RXOUTI))
             return;
+#if 1
+        usb_fifo_write(src, MIN(sz, 32)); 
+        src += MIN(sz, 32);
+        i = MIN(sz, 32);
+#else
         for (i = 0; i < MIN(sz, 32); ++i)
             UEDATX = *(src++);
+#endif
         /* This is for the interrupt handshake */
         UEINTX = ~(1<<TXINI);
         sz -= i;
@@ -469,17 +451,27 @@ ISR(USB_GEN_vect)
         usb_configuration = 0;
     }
 
+    PORT(LED1_BASE) ^= LED1_PIN;
+
     if ((status & (1<<SOFI)) && usb_configuration) {
+        /*
+        printf("here: %s: %d: usb_config: %d, idle_config: %d, idle_count: %d\n",
+                __func__, __LINE__, usb_configuration, idle_config, idle_count); //yep
+                */
 		if (idle_config && (++div4 & 3) == 0) {
+            PORT(LED2_BASE) ^= LED2_PIN;
             UENUM = JOYPAD_EP;
-            if (UEINTX & (1<<RWAL)) {
+            //printf("here: %s: %d\n", __func__, __LINE__); //yep
+            status = UEINTX;
+            printf("UEINTX: 0x%02x\n", status);
+            if (status & (1<<RWAL)) {
+                //printf("here: %s: %d\n", __func__, __LINE__);
                 idle_count++;
                 if (idle_count == idle_config) {
                     idle_count = 0;
-                    for (int i = 0; i < 3; ++i) {
-                        UEDATX = 0x55 ^ i;
-                    }
-                    UEINTX = 0x3a;
+                    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
+                    UEINTX = 0x3a; // These bits don't make any sense
+                    printf("here: %s: %d\n", __func__, __LINE__);
                 }
             }
         }
@@ -545,7 +537,7 @@ static inline void usb_req_get_descriptor(struct usb_request *usb_req)
     /* Wait for the host to get ready to accept data */
     uint8_t len = MIN(usb_req->length, 255);
     len = MIN(len, desc->data_sz);
-    usb_fifo_write(desc->data, len);
+    usb_fifo_write_(desc->data, len);
 }
 
 static inline void usb_req_set_configuration(struct usb_request *usb_req)
@@ -574,6 +566,7 @@ static inline void usb_hid_req_set_idle(struct usb_request *usb_req)
 {
     /* Upper byte is the value */
     idle_config = (usb_req->value >> 8);
+    printf("%s: %d\n", __func__, idle_config);
     idle_count = 0;
     UEINTX = ~(1<<TXINI);
     return;
@@ -581,13 +574,9 @@ static inline void usb_hid_req_set_idle(struct usb_request *usb_req)
 
 static inline void usb_hid_req_get_report(struct usb_request *usb_req)
 {
-    int i;
-
     while (!(UEINTX & (1<<TXINI))) ;
 
-    for (int i = 0; i < 3; ++i) {
-        UEDATX = 0x55 ^ i;
-    }
+    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
     UEINTX = ~(1<<TXINI);
 }
 
@@ -600,14 +589,12 @@ ISR(USB_COM_vect)
     UENUM = 0;
     status = UEINTX;
 
-    /* Setup packet received  */
+    /* SETUP packet received  */
     if (status & (1<<RXSTPI)) {
         usb_fifo_read((void *)&usb_req, sizeof(usb_req));
+		/* ACK the SETUP packet */
         UEINTX = ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI));
-        printf("request_type: 0x%02x, request: 0x%02x, value: 0x%04x, index: 0x%04x, len: 0x%04x\n",
-               usb_req.request_type, usb_req.request, usb_req.value,
-               usb_req.index, usb_req.length);
-        //usart_putchar(usb_req.request, NULL);
+
         switch (usb_req.request_type) {
             case 0x00:
             switch (usb_req.request) {
@@ -647,26 +634,129 @@ ISR(USB_COM_vect)
             }
         }
         printf("%d: unhandled request\n", __LINE__);
+        printf("request_type: 0x%02x, request: 0x%02x, value: 0x%04x, index: 0x%04x, len: 0x%04x\n",
+               usb_req.request_type, usb_req.request, usb_req.value,
+               usb_req.index, usb_req.length);
         PORT(LED2_BASE) &= ~LED2_PIN;
         halt();
-}
+    }
 
     /* This happens */
 }
+
+int8_t usb_joypad_send(void)
+{
+	uint8_t status, timeout;
+
+	if (!usb_configuration) return -1;
+	status = SREG;
+	cli();
+	UENUM = JOYPAD_EP;
+	timeout = UDFNUML + 50;
+	while (1) {
+		/* Wait for ready */
+		if (UEINTX & (1<<RWAL))
+		    break;
+		SREG = status;
+		if (!usb_configuration)
+		    return -1;
+		if (UDFNUML == timeout)
+            return -1;
+		status = SREG;
+		cli();
+		UENUM = JOYPAD_EP;
+	}
+    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
+	UEINTX = (1<<RWAL) | (1<<NAKOUTI) | (1<<RXSTPI) | (1<<STALLEDI);
+	idle_count = 0;
+	SREG = status;
+	return 0;
+
+}
+#endif
+
+#define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
+
+extern void controller_probe(void);
+extern void controller_poll(uint16_t addr);
+extern void func_test(uint16_t addr);
+
+struct gc_state {
+    uint16_t buttons_and_dpad;
+    uint8_t joy_x;
+    uint8_t joy_y;
+    uint8_t c_x;
+    uint8_t c_y;
+    uint8_t l;
+    uint8_t r;
+} __attribute__((packed));
+
+uint8_t popcnt4(uint8_t v)
+{
+    return (v & 1) + ((v>>1) & 1) + ((v>>2) & 1) + ((v>>3) & 1);
+}
+
+/* + 1 for margin */
+uint8_t controller_buffer[(sizeof(struct gc_state) + 1) * 4 * 2] = {0};
 
 int main(void)
 {
     DDR(LED1_BASE) |= LED1_PIN;
     DDR(LED2_BASE) |= LED2_PIN;
 
+    CPU_PRESCALE(0);
+
     usart_init();
     stdio_init();
 
-    usb_init();
+#if 0
+    joypad_report.x = 0xff;
+    joypad_report.y = 0x55;
+    joypad_report.buttons = 0xff;
 
+
+    usb_init();
 
     printf("hello\n");
     //int32_t val;
     for (;;) {
+        usb_joypad_send();
+		joypad_report.x++;
+        _delay_ms(100);
+    }
+#endif
+    /* gc data: d10: PB6 */
+    PORTD &= ~(1<<0);
+    //controller_probe();
+    //controller_buffer[0] = 0;
+
+    /*
+    controller_probe();
+    _delay_ms(12);
+    */
+
+    for (;;) {
+#if 0
+        controller_probe();
+        _delay_ms(12);
+#else
+        controller_poll((uint16_t)&controller_buffer);
+        if (controller_buffer[0] != 0x11)
+            continue;
+        /*
+        for (uint8_t i = 0; i < sizeof(controller_buffer) / 2; ++i) {
+            printf("0x%02x,", controller_buffer[i]);
+        }
+        */
+        for (uint8_t i = 0; i < sizeof(controller_buffer) / 2; ++i) {
+            uint8_t a = popcnt4(controller_buffer[i] >> 4);
+            uint8_t b = popcnt4(controller_buffer[i]);
+#define TH 2
+            printf("%d%d", a < TH ? 0 : 1, b < TH  ? 0 : 1);
+        }
+
+        printf("\n");
+        _delay_ms(120);
+#endif
     }
 }
