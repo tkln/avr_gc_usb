@@ -396,10 +396,6 @@ static inline void usb_fifo_write(const unsigned char *src, uint8_t sz)
 
 static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
 {
-#if 0
-    while (sz--) 
-        UEDATX = *(src++);
-#else
     uint8_t i;
     while (sz) {
         do {
@@ -407,19 +403,13 @@ static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
         } while (!(i & ((1<<TXINI) | (1<<RXOUTI))));
         if (i & (1<<RXOUTI))
             return;
-#if 1
         usb_fifo_write(src, MIN(sz, 32)); 
         src += MIN(sz, 32);
         i = MIN(sz, 32);
-#else
-        for (i = 0; i < MIN(sz, 32); ++i)
-            UEDATX = *(src++);
-#endif
         /* This is for the interrupt handshake */
         UEINTX = ~(1<<TXINI);
         sz -= i;
     }
-#endif
 }
 
 /* Device interrupt */
@@ -690,15 +680,20 @@ struct gc_state {
     int8_t r;
 } __attribute__((packed));
 
-static inline uint8_t popcnt4(uint8_t v)
+static uint8_t popcnt4(uint8_t v)
 {
-    return (v & 1) + ((v>>1) & 1) + ((v>>2) & 1) + ((v>>3) & 1);
+    uint8_t r = (v & 1);
+    r += (v>>1) & 1;
+    r += (v>>2) & 1;
+    r += (v>>3) & 1;
+    return r;
 }
 
-#define THRESH 2
 static inline void process_gc_data(uint8_t *buf, uint8_t *state)
 {
     uint8_t byte;
+
+#define THRESH 2
     for (uint16_t i = 0; i < sizeof(struct gc_state); ++i) {
         byte = 0;
         byte |= (popcnt4(buf[i * 4] >> 4) > THRESH) << 7;
