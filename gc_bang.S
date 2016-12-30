@@ -24,26 +24,7 @@
     sbi _SFR_IO_ADDR(DDRD), 0 /* 2 cycles */
 .endm
 
-.macro microsecond
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
-    //nop
-.endm
-
-microsecond_f:
+microsecond:
     nop
     nop
     nop
@@ -55,24 +36,25 @@ microsecond_f:
 
 .macro lobit
     dlo
-    call microsecond_f
-    call microsecond_f
-    call microsecond_f
+    call microsecond
+    call microsecond
+    call microsecond
     dhi
-    call microsecond_f
+    call microsecond
 .endm
 
 .macro hibit
     dlo
-    call microsecond_f
+    call microsecond
     dhi
-    call microsecond_f
-    call microsecond_f
-    call microsecond_f
+    call microsecond
+    call microsecond
+    call microsecond
 .endm
 
 controller_probe:
     push_sreg
+    cli
     lobit
     lobit
     lobit
@@ -243,11 +225,11 @@ controller_poll:
     push r26
     push r27
 
+    cli
+
     /* Move the first function parameter (buffer pointer) to X(r27, r26) */
     mov r27, r25 
     mov r26, r24 
-
-    cli
 
     controller_poll_send
 
@@ -263,26 +245,8 @@ poll_timeout:
 
     controller_poll_recv
 
-    sei
     pop r27
     pop r26
     pop r17
-    pop_sreg
-    ret
-
-func_test:
-    push_sreg
-    push r26
-    push r27
-
-    mov r27, r25 
-    mov r26, r24 
-    ldi r16, 0xff
-    st x+, r16
-    ldi r16, 0x55
-    st x, r16
-
-    pop r27
-    pop r26
     pop_sreg
     ret

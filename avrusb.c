@@ -820,15 +820,8 @@ int main(void)
     usart_init();
     stdio_init();
 
-    joypad_report.x = 0xff;
-    joypad_report.y = 0x55;
-    joypad_report.buttons_0 = 0xff;
-
-
     usb_init();
 
-    printf("hello\n");
-    
     /* gc data: d3: PD0 */
     PORTD &= ~(1<<0);
 
@@ -839,41 +832,21 @@ int main(void)
 
         if (controller_buffer[0] != 0x11) {
             _delay_us(100);
-            controller_probe();
             continue;
         }
-
-        /*
-        for (uint8_t i = 0; i < sizeof(controller_buffer) / 2; ++i) {
-            printf("0x%02x,", controller_buffer[i]);
-        }
-        */
-
-#if 0
-        for (uint8_t i = 0; i < sizeof(controller_buffer); ++i) {
-            uint8_t a = popcnt4(controller_buffer[i] >> 4);
-            uint8_t b = popcnt4(controller_buffer[i]);
-#define TH 2
-            printf("%d%d", a < TH ? 0 : 1, b < TH  ? 0 : 1);
-            if ((i + 1) % 4 == 0) 
-                printf(" ");
-        }
-        printf("\n");
-#endif
-
 
         process_gc_data(controller_buffer, (void *)&gc_state);
 
         joypad_report.buttons_0 = gc_state.buttons_0;
         joypad_report.buttons_1 = gc_state.buttons_1;
-        joypad_report.x = - 127 + gc_state.joy_x;
+        joypad_report.x = 127 + gc_state.joy_x;
         joypad_report.y = 127 - gc_state.joy_y;
         joypad_report.cx = - 127 + gc_state.c_x;
         joypad_report.cy = 127 - gc_state.c_y;
         joypad_report.l = gc_state.l;
         joypad_report.r = gc_state.r;
 
-        printf("%u\n", gc_state.joy_x);
+        printf("%u\n", joypad_report.x);
 
         usb_joypad_send();
         _delay_ms(10);
