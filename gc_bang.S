@@ -227,9 +227,23 @@ controller_poll:
     mov r27, r25 
     mov r26, r24 
 
+    cli
+
     controller_poll_send
+
+    ldi r17, 0xff
+hiloop:
+    dec r17
+    breq poll_timeout
+    in r16, _SFR_IO_ADDR(PIND)
+    andi r16, 1
+    brne hiloop
+
+poll_timeout:
+
     controller_poll_recv
 
+    sei
     pop r27
     pop r26
     pop r17

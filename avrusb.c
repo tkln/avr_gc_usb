@@ -71,7 +71,6 @@ static inline void halt(void)
         ;
 }
 
-#if 0
 static volatile uint8_t usb_configuration = 0;
 static volatile uint8_t idle_config = 125;
 static volatile uint8_t idle_count = 0;
@@ -277,8 +276,8 @@ static const uint8_t joypad_report_desc[] = {
 
 static volatile struct joypad_report {
     uint8_t buttons;
-    int8_t x;
-    int8_t y;
+    uint8_t x;
+    uint8_t y;
 } __attribute__((packed)) joypad_report;
 
 static const struct usb_config_desc_final {
@@ -673,7 +672,6 @@ int8_t usb_joypad_send(void)
 	return 0;
 
 }
-#endif
 
 #define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
@@ -682,25 +680,48 @@ extern void controller_poll(uint16_t addr);
 extern void func_test(uint16_t addr);
 
 struct gc_state {
-    uint16_t buttons_and_dpad;
-    uint8_t joy_x;
-    uint8_t joy_y;
-    uint8_t c_x;
-    uint8_t c_y;
-    uint8_t l;
-    uint8_t r;
+    uint8_t buttons_0;
+    uint8_t buttons_1;
+    int8_t joy_x;
+    int8_t joy_y;
+    int8_t c_x;
+    int8_t c_y;
+    int8_t l;
+    int8_t r;
 } __attribute__((packed));
 
-uint8_t popcnt4(uint8_t v)
+static inline uint8_t popcnt4(uint8_t v)
 {
     return (v & 1) + ((v>>1) & 1) + ((v>>2) & 1) + ((v>>3) & 1);
 }
 
-/* + 1 for margin */
-uint8_t controller_buffer[(sizeof(struct gc_state) + 1) * 4 * 2] = {0};
+#define THRESH 2
+static inline void process_gc_data(uint8_t *buf, uint8_t *state)
+{
+    uint8_t byte;
+    for (uint16_t i = 0; i < sizeof(struct gc_state); ++i) {
+        byte = 0;
+        byte |= (popcnt4(buf[i * 4] >> 4) > THRESH) << 7;
+        byte |= (popcnt4(buf[i * 4]) > THRESH) << 6;
+
+        byte |= (popcnt4(buf[i * 4 + 1] >> 4) > THRESH) << 5;
+        byte |= (popcnt4(buf[i * 4 + 1]) > THRESH) << 4;
+
+        byte |= (popcnt4(buf[i * 4 + 2] >> 4) > THRESH) << 3;
+        byte |= (popcnt4(buf[i * 4 + 2]) > THRESH) << 2;
+
+        byte |= (popcnt4(buf[i * 4 + 3] >> 4) > THRESH) << 1;
+        byte |= (popcnt4(buf[i * 4 + 3]) > THRESH) << 0;
+
+        state[i] = byte;
+    }
+}
 
 int main(void)
 {
+    static uint8_t controller_buffer[(sizeof(struct gc_state)) * 4] = {0};
+    static struct gc_state gc_state; 
+
     DDR(LED1_BASE) |= LED1_PIN;
     DDR(LED2_BASE) |= LED2_PIN;
 
@@ -709,7 +730,6 @@ int main(void)
     usart_init();
     stdio_init();
 
-#if 0
     joypad_report.x = 0xff;
     joypad_report.y = 0x55;
     joypad_report.buttons = 0xff;
@@ -718,22 +738,11 @@ int main(void)
     usb_init();
 
     printf("hello\n");
-    //int32_t val;
-    for (;;) {
-        usb_joypad_send();
-		joypad_report.x++;
-        _delay_ms(100);
-    }
-#endif
-    /* gc data: d10: PB6 */
+    
+    /* gc data: d3: PD0 */
     PORTD &= ~(1<<0);
-    //controller_probe();
-    //controller_buffer[0] = 0;
 
-    /*
     controller_probe();
-    _delay_ms(12);
-    */
 
     for (;;) {
 #if 0
@@ -741,22 +750,46 @@ int main(void)
         _delay_ms(12);
 #else
         controller_poll((uint16_t)&controller_buffer);
-        if (controller_buffer[0] != 0x11)
+
+        if (controller_buffer[0] != 0x11) {
+            _delay_us(100);
+            controller_probe();
             continue;
+        }
+
         /*
         for (uint8_t i = 0; i < sizeof(controller_buffer) / 2; ++i) {
             printf("0x%02x,", controller_buffer[i]);
         }
         */
-        for (uint8_t i = 0; i < sizeof(controller_buffer) / 2; ++i) {
+
+#if 0
+        for (uint8_t i = 0; i < sizeof(controller_buffer); ++i) {
             uint8_t a = popcnt4(controller_buffer[i] >> 4);
             uint8_t b = popcnt4(controller_buffer[i]);
 #define TH 2
             printf("%d%d", a < TH ? 0 : 1, b < TH  ? 0 : 1);
+            if ((i + 1) % 4 == 0) 
+                printf(" ");
         }
-
         printf("\n");
-        _delay_ms(120);
+#endif
+
+
+        process_gc_data(controller_buffer, (void *)&gc_state);
+
+        joypad_report.buttons = gc_state.buttons_0;
+        joypad_report.x = gc_state.joy_x + 127;
+        joypad_report.y = gc_state.joy_y + 127;
+
+        /*
+        joypad_report.x = 0;
+        joypad_report.y = -50;
+        */
+        //printf("%d\n", gc_state.joy_x);
+
+        usb_joypad_send();
+        _delay_ms(10);
 #endif
     }
 }
