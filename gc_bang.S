@@ -43,22 +43,32 @@
     //nop
 .endm
 
+microsecond_f:
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    ret
+
 .macro lobit
     dlo
-    microsecond
-    microsecond
-    microsecond
+    call microsecond_f
+    call microsecond_f
+    call microsecond_f
     dhi
-    microsecond
+    call microsecond_f
 .endm
 
 .macro hibit
     dlo
-    microsecond
+    call microsecond_f
     dhi
-    microsecond
-    microsecond
-    microsecond
+    call microsecond_f
+    call microsecond_f
+    call microsecond_f
 .endm
 
 controller_probe:
@@ -115,11 +125,15 @@ controller_probe:
  */
 .macro controller_poll_recv_bit
     /* Get the port state. The data is in the last bit */
-    lsl r17                     /* 1, 4 / 16 */
-    in r16, _SFR_IO_ADDR(PIND)  /* 1, 1 / 16 */
-    andi r16, 1                 /* 1, 2 / 16 */
-    or r17, r16                 /* 1, 3 / 16 */
+    lsl r17                     /* 1, 1 / 16 */
+    in r16, _SFR_IO_ADDR(PIND)  /* 1, 2 / 16 */
+    andi r16, 1                 /* 1, 3 / 16 */
+    or r17, r16                 /* 1, 4 / 16 */
 .endm
+
+controller_poll_recv_bit_f:     /* total 9 */
+    controller_poll_recv_bit    /* 4 */
+    ret                         /* 5 */
 
 .macro nop12
     nop
@@ -148,28 +162,34 @@ controller_probe:
     nop
 .endm
 
+.macro nop4
+    nop
+    nop
+    nop
+    nop
+.endm
+
 /* Assumes r17 zero
  * Assumes that X points to the buffer  */
 .macro controller_poll_recv_byte
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    nop12                       /* 12,  16 */
-    controller_poll_recv_bit    /* 4,   4 */
-    /* At this point we have 12 = 16 - 4 cycles to spend */
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    nop4
+    call controller_poll_recv_bit_f /* 9 + 5,   4 */
     st X+, r17                  /* 2,   6 */
     ldi r17, 0                  /* 1,   7 */
-    nop9                        /* 9,   16 */
+    nop
 .endm
 
 .macro controller_poll_recv

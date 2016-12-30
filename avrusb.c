@@ -782,6 +782,5 @@ int main(void)
 
         usb_joypad_send();
         _delay_ms(10);
-#endif
     }
 }
