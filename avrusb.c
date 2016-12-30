@@ -247,33 +247,73 @@ struct usb_endpoint_desc {
     uint8_t interval;
 } __attribute__((packed));
 
+enum collections {
+    PHYSICAL    = 0x00,
+    APPLICATION = 0x01,
+};
+
+enum usage_pages {
+    GENERIC_DESKTOP = 0x01,
+    BUTTON          = 0x09,
+};
+
+enum usages {
+    GAME_PAD    = 0x05,
+    X           = 0x30,
+    Y           = 0x31,
+};
+
+enum inptu_bits_0 {
+    DATA    = 0x00,
+    CONST   = 0x01,
+};
+
+enum inptu_bits_1 {
+    ARRAY    = 0x00<<1,
+    VARIABLE   = 0x01<<1,
+};
+
+enum inptu_bits_2 {
+    ABSOLUTE    = 0x00<<2,
+    RELATIVE    = 0x01<<3,
+};
+
+
+#define USAGE(x)            0x09, (x),
+#define USAGE_PAGE(x)       0x05, (x),
+#define COLLECTION(x)       0xa1, (x),
+#define END_COLLECTION      0xc0,
+#define USAGE_MINIMUM(x)    0x19, (x),
+#define USAGE_MAXIMUM(x)    0x29, (x),
+#define LOGICAL_MINIMUM(x)  0x15, (x),
+#define LOGICAL_MAXIMUM(x)  0x25, (x),
+#define REPORT_COUNT(x)     0x95, (x),
+#define REPORT_SIZE(x)      0x75, (x),
+#define INPUT(b0, b1, b2)   0x81, ((b0) | (b1) | (b2)),
 
 static const uint8_t joypad_report_desc[] = {
-    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
-    0x09, 0x05,                    // USAGE (Game Pad)
-    0xa1, 0x01,                    // COLLECTION (Application)
-    0xa1, 0x00,                    //   COLLECTION (Physical)
-    0x05, 0x09,                    //     USAGE_PAGE (Button)
-    0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
-    0x29, 0x05,                    //     USAGE_MAXIMUM (Button 5)
-    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
-    0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
-    0x95, 0x05,                    //     REPORT_COUNT (5)
-    0x75, 0x01,                    //     REPORT_SIZE (1)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0x95, 0x01,                    //     REPORT_COUNT (5)
-    0x75, 0x05,                    //     REPORT_SIZE (1)
-    0x81, 0x03,                    //     INPUT (Cnst,Var,Abs)
-    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
-    0x09, 0x30,                    //     USAGE (X)
-    0x09, 0x31,                    //     USAGE (Y)
-    0x15, 0x81,                    //     LOGICAL_MINIMUM (-127)
-    0x25, 0x7f,                    //     LOGICAL_MAXIMUM (127)
-    0x75, 0x08,                    //     REPORT_SIZE (8)
-    0x95, 0x02,                    //     REPORT_COUNT (2)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0xc0,                          //     END_COLLECTION
-    0xc0                           // END_COLLECTION
+    USAGE_PAGE(GENERIC_DESKTOP)
+    USAGE(GAME_PAD)
+    COLLECTION(APPLICATION)
+        COLLECTION(PHYSICAL)
+            USAGE_PAGE(BUTTON)
+            USAGE_MINIMUM(1)
+            USAGE_MAXIMUM(8)
+            LOGICAL_MINIMUM(0)
+            LOGICAL_MAXIMUM(1)
+            REPORT_COUNT(8)
+            REPORT_SIZE(1)
+            INPUT(DATA, VARIABLE, ABSOLUTE)
+            USAGE_PAGE(GENERIC_DESKTOP)
+            USAGE(X)
+            USAGE(Y)
+            LOGICAL_MINIMUM(-127)
+            LOGICAL_MAXIMUM(127)
+            REPORT_SIZE(8)
+            REPORT_COUNT(2)
+            INPUT(DATA, VARIABLE, ABSOLUTE)
+        END_COLLECTION
+    END_COLLECTION
 };
 
 
