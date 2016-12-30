@@ -367,10 +367,10 @@ static const uint8_t joypad_report_desc[] = {
 static volatile struct joypad_report {
     uint8_t buttons_0;
     uint8_t buttons_1;
-    uint8_t x;
-    uint8_t y;
-    uint8_t cx;
-    uint8_t cy;
+    uint8_t joy_x;
+    uint8_t joy_y;
+    uint8_t c_x;
+    uint8_t c_y;
     uint8_t l;
     uint8_t r;
 } __attribute__((packed)) joypad_report;
@@ -764,17 +764,6 @@ extern void controller_probe(void);
 extern void controller_poll(uint16_t addr);
 extern void func_test(uint16_t addr);
 
-struct gc_state {
-    uint8_t buttons_0;
-    uint8_t buttons_1;
-    uint8_t joy_x;
-    uint8_t joy_y;
-    uint8_t c_x;
-    uint8_t c_y;
-    uint8_t l;
-    uint8_t r;
-} __attribute__((packed));
-
 static uint8_t popcnt4(uint8_t v)
 {
     uint8_t r = (v & 1);
@@ -789,7 +778,7 @@ static inline void process_gc_data(uint8_t *buf, uint8_t *state)
     uint8_t byte;
 
 #define THRESH 2
-    for (uint16_t i = 0; i < sizeof(struct gc_state); ++i) {
+    for (uint16_t i = 0; i < sizeof(struct joypad_report); ++i) {
         byte = 0;
         byte |= (popcnt4(buf[i * 4] >> 4) > THRESH) << 7;
         byte |= (popcnt4(buf[i * 4]) > THRESH) << 6;
@@ -809,8 +798,8 @@ static inline void process_gc_data(uint8_t *buf, uint8_t *state)
 
 int main(void)
 {
-    static uint8_t controller_buffer[(sizeof(struct gc_state)) * 4] = {0};
-    static struct gc_state gc_state; 
+    static uint8_t controller_buffer[(sizeof(struct joypad_report)) * 4] = {0};
+    static struct joypad_report gc_state;
 
     DDR(LED1_BASE) |= LED1_PIN;
     DDR(LED2_BASE) |= LED2_PIN;
@@ -835,20 +824,20 @@ int main(void)
             continue;
         }
 
-        process_gc_data(controller_buffer, (void *)&gc_state);
+        process_gc_data(controller_buffer, (void *)&joypad_report);
 
-        joypad_report.buttons_0 = gc_state.buttons_0;
-        joypad_report.buttons_1 = gc_state.buttons_1;
-        joypad_report.x = 127 + gc_state.joy_x;
-        joypad_report.y = 127 - gc_state.joy_y;
-        joypad_report.cx = - 127 + gc_state.c_x;
-        joypad_report.cy = 127 - gc_state.c_y;
-        joypad_report.l = gc_state.l;
-        joypad_report.r = gc_state.r;
+        joypad_report.buttons_0 = joypad_report.buttons_0;
+        joypad_report.buttons_1 = joypad_report.buttons_1;
+        joypad_report.joy_x += 127;
+        joypad_report.joy_y = 127 - joypad_report.joy_y;
+        joypad_report.c_x += 127;
+        joypad_report.c_y = 127 - joypad_report.c_y;
+        joypad_report.l = joypad_report.l;
+        joypad_report.r = joypad_report.r;
 
-        printf("%u\n", joypad_report.x);
+        printf("%u\n", joypad_report.joy_x);
 
         usb_joypad_send();
-        _delay_ms(10);
+        _delay_ms(5);
     }
 }
