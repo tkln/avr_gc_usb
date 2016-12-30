@@ -349,6 +349,16 @@ static const uint8_t joypad_report_desc[] = {
             REPORT_SIZE(8)
             REPORT_COUNT(2)
             INPUT(DATA, VARIABLE, ABSOLUTE)
+
+            /* The throtles */
+            USAGE_PAGE(GENERIC_DESKTOP)
+            USAGE(RY)
+            USAGE(RZ)
+            LOGICAL_MINIMUM(0)
+            LOGICAL_MAXIMUM(255)
+            REPORT_SIZE(8)
+            REPORT_COUNT(2)
+            INPUT(DATA, VARIABLE, ABSOLUTE)
         END_COLLECTION
     END_COLLECTION
 };
@@ -361,6 +371,8 @@ static volatile struct joypad_report {
     uint8_t y;
     uint8_t cx;
     uint8_t cy;
+    uint8_t l;
+    uint8_t r;
 } __attribute__((packed)) joypad_report;
 
 static const struct usb_config_desc_final {
@@ -757,10 +769,10 @@ struct gc_state {
     uint8_t buttons_1;
     uint8_t joy_x;
     uint8_t joy_y;
-    int8_t c_x;
-    int8_t c_y;
-    int8_t l;
-    int8_t r;
+    uint8_t c_x;
+    uint8_t c_y;
+    uint8_t l;
+    uint8_t r;
 } __attribute__((packed));
 
 static uint8_t popcnt4(uint8_t v)
@@ -858,6 +870,8 @@ int main(void)
         joypad_report.y = 127 - gc_state.joy_y;
         joypad_report.cx = - 127 + gc_state.c_x;
         joypad_report.cy = 127 - gc_state.c_y;
+        joypad_report.l = gc_state.l;
+        joypad_report.r = gc_state.r;
 
         printf("%u\n", gc_state.joy_x);
 
