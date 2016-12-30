@@ -799,7 +799,6 @@ static inline void process_gc_data(uint8_t *buf, uint8_t *state)
 int main(void)
 {
     static uint8_t controller_buffer[(sizeof(struct joypad_report)) * 4] = {0};
-    static struct joypad_report gc_state;
 
     DDR(LED1_BASE) |= LED1_PIN;
     DDR(LED2_BASE) |= LED2_PIN;
