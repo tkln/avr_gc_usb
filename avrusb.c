@@ -4,8 +4,9 @@
 #include <stdio.h>
 
 #include "debug.h"
-
 #include "usb.h"
+#include "gc_bang.h"
+#include "iodefs.h"
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -497,9 +498,6 @@ int8_t usb_joypad_send(void)
 
 }
 
-extern void controller_probe(void);
-extern void controller_poll(uint16_t addr);
-
 static uint8_t popcnt4(uint8_t v)
 {
     uint8_t r = (v & 1);
@@ -541,7 +539,9 @@ int main(void)
     stdio_init();
     usb_init();
 
-    PORTD &= ~(1<<0);
+    /* Make sure the pin is down because external pull up resistors are used */
+    /* The pin state is changed by pulling it down with DDR reg */
+    CONTROLLER_DATA_PORT &= ~(1<<CONTROLLER_DATA_BIT);
 
     controller_probe();
 

@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "debug.h"
+#include "iodefs.h"
 
 #define BAUD 9600
 

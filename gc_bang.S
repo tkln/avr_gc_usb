@@ -1,5 +1,7 @@
 #include <avr/io.h>
 
+#include "iodefs.h"
+
 .global controller_probe
 .global controller_poll
 .global func_test
@@ -17,11 +19,11 @@
 .endm
 
 .macro dhi
-    cbi _SFR_IO_ADDR(DDRD), 0 /* 2 cycles */
+    cbi _SFR_IO_ADDR(CONTROLLER_DATA_DDR), 0 /* 2 cycles */
 .endm
 
 .macro dlo
-    sbi _SFR_IO_ADDR(DDRD), 0 /* 2 cycles */
+    sbi _SFR_IO_ADDR(CONTROLLER_DATA_DDR), 0 /* 2 cycles */
 .endm
 
 microsecond:
@@ -108,7 +110,7 @@ controller_probe:
 .macro controller_poll_recv_bit
     /* Get the port state. The data is in the last bit */
     lsl r17                     /* 1, 1 / 16 */
-    in r16, _SFR_IO_ADDR(PIND)  /* 1, 2 / 16 */
+    in r16, _SFR_IO_ADDR(CONTROLLER_DATA_PIN)  /* 1, 2 / 16 */
     andi r16, 1                 /* 1, 3 / 16 */
     or r17, r16                 /* 1, 4 / 16 */
 .endm
@@ -237,7 +239,7 @@ controller_poll:
 hiloop:
     dec r17
     breq poll_timeout
-    in r16, _SFR_IO_ADDR(PIND)
+    in r16, _SFR_IO_ADDR(CONTROLLER_DATA_PIN)
     andi r16, 1
     brne hiloop
 
