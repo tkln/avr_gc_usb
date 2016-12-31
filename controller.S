@@ -14,7 +14,7 @@
     sbi _SFR_IO_ADDR(CONTROLLER_DATA_DDR), 0 /* 2 cycles */
 .endm
 
-microsecond:
+microsecond_nop:
     nop
     nop
     nop
@@ -26,20 +26,20 @@ microsecond:
 
 .macro lobit
     dlo
-    call microsecond
-    call microsecond
-    call microsecond
+    call microsecond_nop
+    call microsecond_nop
+    call microsecond_nop
     dhi
-    call microsecond
+    call microsecond_nop
 .endm
 
 .macro hibit
     dlo
-    call microsecond
+    call microsecond_nop
     dhi
-    call microsecond
-    call microsecond
-    call microsecond
+    call microsecond_nop
+    call microsecond_nop
+    call microsecond_nop
 .endm
 
 controller_probe:
@@ -92,18 +92,19 @@ controller_probe:
 
 /* 
  * Clutters r18 and r19.
- * The bit is read into r19.
- * takes 4 cycles in total
+ * The bit is read into r19
+ * Takes 4 cycles in total
  */
 .macro controller_poll_recv_bit
     /* Get the port state. The data is in the last bit */
-    lsl r19                     /* 1, 1 / 16 */
-    in r18, _SFR_IO_ADDR(CONTROLLER_DATA_PIN)  /* 1, 2 / 16 */
-    andi r18, 1                 /* 1, 3 / 16 */
-    or r19, r18                 /* 1, 4 / 16 */
+    lsl r19
+    in r18, _SFR_IO_ADDR(CONTROLLER_DATA_PIN)
+    andi r18, 1
+    or r19, r18
 .endm
 
-controller_poll_recv_bit_f:     /* total 9 */
+/* Takes 9 cycles in total */
+controller_poll_recv_bit_f:
     controller_poll_recv_bit    /* 4 */
     ret                         /* 5 */
 
@@ -117,24 +118,28 @@ controller_poll_recv_bit_f:     /* total 9 */
 /* Assumes r19 zero
  * Assumes that X points to the buffer  */
 .macro controller_poll_recv_byte
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    /*
+     * Assuming F_CPU = 16 MHz, each bit on from the controller must be
+     * sampled in 16 cycles, exactly
+     */
+    call controller_poll_recv_bit_f /* 5 + 9 / 16 cycles */
+    nop4                            /* 16 / 16 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
+    call controller_poll_recv_bit_f
     nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
-    nop4
-    call controller_poll_recv_bit_f /* 9 + 5,   4 */
-    st X+, r19                  /* 2,   6 */
-    ldi r19, 0                  /* 1,   7 */
-    nop
+    call controller_poll_recv_bit_f /* 5 + 9 / 16 */
+    st X+, r19                      /* 14 / 16 */
+    ldi r19, 0                      /* 15 / 16 */
+    nop                             /* 16 / 16 */
 .endm
 
 .macro controller_poll_recv
