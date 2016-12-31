@@ -5,6 +5,8 @@
 
 #include "debug.h"
 
+#include "usb.h"
+
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -37,38 +39,6 @@ static void usb_init(void)
     sei();
 }
 
-#define EP_TYPE_CONTROL 0x00
-#define ENDPOINT_TYPE_INTERRUPT_IN 0xc1
-
-enum {
-    USB_EP_TYPE_CONTROL = 0,
-    USB_EP_TYPE_ISOCHRONOUS = 1,
-    USB_EP_TYPE_BULK = 2,
-    USB_EP_TYPE_INTERRUPT = 3,
-};
-
-enum usb_request_codes {
-    USB_REQ_GET_STATUS =        0,
-    USB_REQ_CLEAR_FEATURE =     1,
-    USB_REQ_SET_FEATURE =       3,
-    USB_REQ_SET_ADDRESS =       5,
-    USB_REQ_GET_DESCRIPTOR =    6,
-    USB_REQ_SET_DESCRIPTOR =    7,
-    USB_REQ_GET_CONFIGURATION = 8,
-    USB_REQ_SET_CONFIGURATION = 9,
-    USB_REQ_GET_INTERFACE =     10,
-    USB_REQ_SET_INTERFACE =     11,
-    USB_REQ_SYNCH_FRAME =       12,
-};
-
-enum usb_descriptor_type {
-    USB_DESC_TYPE_DEVICE =        1,
-    USB_DESC_TYPE_CONFIGURATION = 2,
-    USB_DESC_TYPE_STRING =        3,
-    USB_DESC_TYPE_INTERFACE =     4,
-    USB_DESC_TYPE_ENDPOINT =      5,
-};
-
 /* XXX */
 #define JOYPAD_INTERFACE 0
 #define JOYPAD_EP_SIZE 8
@@ -91,29 +61,6 @@ static const struct {
     { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
 };
 
-struct usb_device_descriptor {
-    uint8_t length;
-    uint8_t descriptor_type;
-    uint16_t bcd_usb;
-    uint8_t device_class;
-    uint8_t device_sub_class;
-    uint8_t device_protocol;
-    uint8_t max_packet_size_0;
-    uint16_t id_vendor;
-    uint16_t id_product;
-    uint16_t bcd_device;
-    uint8_t manufacturer_idx;
-    uint8_t product_idx;
-    uint8_t serial_number_idx;
-    uint8_t num_configurations;
-} __attribute__((packed));
-
-struct usb_string_descriptor {
-    uint8_t length;
-    uint8_t descriptor_type;
-    int16_t string[];
-}__attribute__((packed));
-
 /* TODO make this progmem */
 static const struct usb_device_descriptor device_descriptor = {
     .length             = sizeof(struct usb_device_descriptor),
@@ -131,106 +78,6 @@ static const struct usb_device_descriptor device_descriptor = {
     .serial_number_idx  = 0,
     .num_configurations = 1
 };
-
-struct usb_config_desc {
-    uint8_t length;
-    uint8_t descriptor_type;
-    uint16_t total_length;
-    uint8_t num_interfaces;
-    uint8_t configuration_value;
-    uint8_t configuration_idx;
-    uint8_t attributes;
-    uint8_t max_power;
-} __attribute__((packed));
-
-struct usb_interface_desc {
-    uint8_t length;
-    uint8_t descriptor_type;
-    uint8_t interface_number;
-    uint8_t alternate_setting;
-    uint8_t num_endpoints;
-    uint8_t interface_class;
-    uint8_t interface_sub_class;
-    uint8_t interface_protocol;
-    uint8_t interface_idx;
-} __attribute__((packed));
-
-enum usb_config_desc_attrs {
-    USB_CFG_ATTR_RESERVED = 7,
-    USB_CFG_ATTR_SELF_POWERED = 6,
-    USB_CFG_ATTR_REMOTE_WAKEUP = 5,
-};
-
-enum usb_base_class {
-    USB_HID_DEVICE_CLASS = 0x03
-};
-
-struct usb_hid_interface_desc {
-    uint8_t length;
-    uint8_t descriptor_type;
-    uint16_t bcd_hid;
-    uint8_t country_code;
-    uint8_t num_descriptors;
-    uint8_t descriptor_class_type;
-    uint16_t descriptor_length;
-} __attribute__((packed));
-
-struct usb_endpoint_desc {
-    uint8_t length;
-    uint8_t descriptor_type;
-    uint8_t endpoint_address;
-    uint8_t attributes;
-    uint16_t max_packet_size;
-    uint8_t interval;
-} __attribute__((packed));
-
-enum collections {
-    PHYSICAL    = 0x00,
-    APPLICATION = 0x01,
-};
-
-enum usage_pages {
-    GENERIC_DESKTOP = 0x01,
-    BUTTON          = 0x09,
-};
-
-enum usages {
-    GAME_PAD    = 0x05,
-    X           = 0x30,
-    Y           = 0x31,
-    Z           = 0x32,
-    RX          = 0x33,
-    RY          = 0x34,
-    RZ          = 0x35,
-};
-
-enum inptu_bits_0 {
-    DATA    = 0x00,
-    CONST   = 0x01,
-};
-
-enum inptu_bits_1 {
-    ARRAY    = 0x00<<1,
-    VARIABLE   = 0x01<<1,
-};
-
-enum inptu_bits_2 {
-    ABSOLUTE    = 0x00<<2,
-    RELATIVE    = 0x01<<3,
-};
-
-
-#define USAGE(x)            0x09, (x),
-#define USAGE_PAGE(x)       0x05, (x),
-#define COLLECTION(x)       0xa1, (x),
-#define END_COLLECTION      0xc0,
-#define USAGE_MINIMUM(x)    0x19, (x),
-#define USAGE_MAXIMUM(x)    0x29, (x),
-#define LOGICAL_MINIMUM(x)  0x15, (x),
-#define LOGICAL_MAXIMUM(x)  0x25, (x),
-#define REPORT_COUNT(x)     0x95, (x),
-#define REPORT_SIZE(x)      0x75, (x),
-#define INPUT(b0, b1, b2)   0x81, ((b0) | (b1) | (b2)),
 
 static const uint8_t joypad_report_desc[] = {
     USAGE_PAGE(GENERIC_DESKTOP)
@@ -342,7 +189,7 @@ static const struct usb_config_desc_final {
     },
     .hid_interface_desc = {
         .length                 = sizeof(config_desc_final.hid_interface_desc),
-        .descriptor_type        = 33,
+        .descriptor_type        = USB_DESC_TYPE_HID,
         .bcd_hid                = 0x101,
         .country_code           = 0,
         .num_descriptors        = 1,
@@ -358,17 +205,6 @@ static const struct usb_config_desc_final {
         .interval           = 1,
     },
 };
-
-#define USB_STRING_DESCRIPTOR(name, str) \
-    static const struct { \
-        uint8_t length; \
-        uint8_t descriptor_type; \
-        int16_t string[sizeof(str)]; \
-    } __attribute__((packed)) name = { \
-        .length             = sizeof(name), \
-        .descriptor_type    = USB_DESC_TYPE_STRING,\
-        .string             = {str},\
-    };
 
 USB_STRING_DESCRIPTOR(string0, 0x0409); /* US English language code */
 USB_STRING_DESCRIPTOR(string1, L"lörs");
@@ -490,23 +326,6 @@ ISR(USB_GEN_vect)
         }
     }
 }
-
-struct usb_request {
-    uint8_t request_type;
-    uint8_t request;
-    uint16_t value;
-    uint16_t index;
-    uint16_t length;
-} __attribute__((packed));
-
-enum hid_requests {
-    USB_HID_GET_REPORT      = 0x01,
-    USB_HID_GET_IDLE        = 0x02,
-    USB_HID_GET_PROTOCOL    = 0x03,
-    USB_HID_SET_REPORT      = 0x09,
-    USB_HID_SET_IDLE        = 0x0a,
-    USB_HID_SET_PROTOCOL    = 0x0b,
-};
 
 static inline void usb_req_clear_feature(struct usb_request *usb_req)
 {
@@ -686,7 +505,6 @@ int8_t usb_joypad_send(void)
 
 extern void controller_probe(void);
 extern void controller_poll(uint16_t addr);
-extern void func_test(uint16_t addr);
 
 static uint8_t popcnt4(uint8_t v)
 {
