@@ -496,30 +496,44 @@ int8_t usb_joypad_send(void)
     return 0;
 }
 
-static uint8_t popcnt4(uint8_t v)
+
+/*
+ * A bit in the controller state is encoded into four bits. This decodess the
+ * original bit from those four bits received from the controller.
+ */
+
+#define ENC_BIT_THRESHOLD 2 /* This seems to work the best */
+
+static uint8_t controller_decode_nibble(uint8_t v)
 {
-    uint8_t r = (v & 1);
-    r += (v>>1) & 1;
-    r += (v>>2) & 1;
+    uint8_t r;
+
+    /*
+     * In the correct case the middle bits should be the most important in
+     * determining the value of the encoded bit.
+     */
+    r = (v & 1);
+    r += ((v>>1) & 1) * 2;
+    r += ((v>>2) & 1) * 2;
     r += (v>>3) & 1;
-    return r;
+
+    return r > ENC_BIT_THRESHOLD;
 }
 
-static inline void process_gc_data(uint8_t *buf, uint8_t *state)
+static inline void controller_decode_state(uint8_t *buf, uint8_t *state)
 {
     uint8_t byte;
 
-#define THRESH 2
     for (uint16_t i = 0; i < sizeof(struct joypad_report); ++i) {
         byte = 0;
-        byte |= (popcnt4(buf[i * 4]>>4) > THRESH)<<7;
-        byte |= (popcnt4(buf[i * 4]) > THRESH)<<6;
-        byte |= (popcnt4(buf[i * 4 + 1]>>4) > THRESH)<<5;
-        byte |= (popcnt4(buf[i * 4 + 1]) > THRESH)<<4;
-        byte |= (popcnt4(buf[i * 4 + 2]>>4) > THRESH)<<3;
-        byte |= (popcnt4(buf[i * 4 + 2]) > THRESH)<<2;
-        byte |= (popcnt4(buf[i * 4 + 3]>>4) > THRESH)<<1;
-        byte |= (popcnt4(buf[i * 4 + 3]) > THRESH)<<0;
+        byte |= (controller_decode_nibble(buf[i * 4]>>4))<<7;
+        byte |= (controller_decode_nibble(buf[i * 4]))<<6;
+        byte |= (controller_decode_nibble(buf[i * 4 + 1]>>4))<<5;
+        byte |= (controller_decode_nibble(buf[i * 4 + 1]))<<4;
+        byte |= (controller_decode_nibble(buf[i * 4 + 2]>>4))<<3;
+        byte |= (controller_decode_nibble(buf[i * 4 + 2]))<<2;
+        byte |= (controller_decode_nibble(buf[i * 4 + 3]>>4))<<1;
+        byte |= (controller_decode_nibble(buf[i * 4 + 3]))<<0;
         state[i] = byte;
     }
 }
@@ -544,14 +558,17 @@ int main(void)
     controller_probe();
 
     for (;;) {
+        _delay_ms(8);
+
         controller_poll((uint16_t)&controller_buffer);
 
         if (controller_buffer[0] != 0x11) {
-            _delay_us(100);
+            _delay_ms(12);
+            controller_probe();
             continue;
         }
 
-        process_gc_data(controller_buffer, (void *)&joypad_report);
+        controller_decode_state(controller_buffer, (void *)&joypad_report);
 
         joypad_report.buttons_0 = joypad_report.buttons_0;
         joypad_report.buttons_1 = joypad_report.buttons_1;
@@ -562,9 +579,6 @@ int main(void)
         joypad_report.l = joypad_report.l;
         joypad_report.r = joypad_report.r;
 
-        printf("%u\n", joypad_report.joy_x);
-
         usb_joypad_send();
-        _delay_ms(5);
     }
 }
