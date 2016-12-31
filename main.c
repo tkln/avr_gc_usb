@@ -18,11 +18,11 @@ static volatile uint8_t idle_count = 0;
 static void usb_init(void)
 {
     /* HW config */
-    UHWCON = (1<<UVREGE); /* enable usb pad regulator */
+    UHWCON = (1<<UVREGE); /* Enable USB pad regulator */
     /* USB freeze */
-    USBCON = (1<<USBE) | (1<<FRZCLK); /* enable usb controller, freeze usb clock */
+    USBCON = (1<<USBE) | (1<<FRZCLK); /* Enable USB controller, freeze USB clock */
     /* PLL config */
-    PLLCSR = (1<<PINDIV) | (1<<PLLE); /* set pll prescaler, enable the pll */
+    PLLCSR = (1<<PINDIV) | (1<<PLLE); /* Set PLL prescaler, enable the PLL */
 
     /* Wait for PLL to lock */
     while (!(PLLCSR) & (1<<PLOCK))
@@ -40,7 +40,6 @@ static void usb_init(void)
     sei();
 }
 
-/* XXX */
 #define GAMEPAD_INTERFACE 0
 #define GAMEPAD_EP_SIZE 8
 #define GAMEPAD_EP 3
@@ -160,7 +159,7 @@ static volatile struct joypad_report {
 } __attribute__((packed)) joypad_report;
 
 static const struct usb_config_desc_final {
-    struct usb_config_desc config; 
+    struct usb_config_desc config;
     struct usb_interface_desc interface;
     struct usb_hid_interface_desc hid_interface_desc;
     struct usb_endpoint_desc endpoint_desc;
@@ -194,7 +193,7 @@ static const struct usb_config_desc_final {
         .country_code           = 0,
         .num_descriptors        = 1,
         .descriptor_class_type  = 34, /* Report? */
-        .descriptor_length      = sizeof(joypad_report_desc), 
+        .descriptor_length      = sizeof(joypad_report_desc),
     },
     .endpoint_desc = {
         .length             = sizeof(config_desc_final.endpoint_desc),
@@ -218,41 +217,41 @@ static struct usb_descriptor {
     uint8_t data_sz;
 } descriptors[] = {
     {
-        .value 		= USB_DESC_TYPE_DEVICE<<8, /* 0x0100 */
-        .index 		= 0,
-        .data 		= (void *)&device_descriptor,
-        .data_sz	= sizeof(device_descriptor)
+        .value      = USB_DESC_TYPE_DEVICE<<8, /* 0x0100 */
+        .index      = 0,
+        .data       = (void *)&device_descriptor,
+        .data_sz    = sizeof(device_descriptor)
     }, {
-        .value 		= USB_DESC_TYPE_CONFIGURATION<<8, /* 0x0200 */
-        .index 		= 0,
-        .data 		= (void *)&config_desc_final,
-        .data_sz 	= sizeof(config_desc_final),
+        .value      = USB_DESC_TYPE_CONFIGURATION<<8, /* 0x0200 */
+        .index      = 0,
+        .data       = (void *)&config_desc_final,
+        .data_sz    = sizeof(config_desc_final),
     }, {
-		.value 		= 0x2200, /* XXX */
-		.index 		= GAMEPAD_INTERFACE,
-		.data 		= joypad_report_desc,
-		.data_sz 	= sizeof(joypad_report_desc),
-	}, {
-        .value 		= USB_DESC_TYPE_STRING<<8,
-        .index 		= 0,
-        .data 		= (void *)&string0,
-        .data_sz 	= sizeof(string0),
+        .value      = 0x2200, /* XXX */
+        .index      = GAMEPAD_INTERFACE,
+        .data       = joypad_report_desc,
+        .data_sz    = sizeof(joypad_report_desc),
     }, {
-        .value 		= USB_DESC_TYPE_STRING<<8 | 0x01,
-        .index 		= 0x0409,
-        .data 		= (void *)&string1,
-        .data_sz 	= sizeof(string1),
+        .value      = USB_DESC_TYPE_STRING<<8,
+        .index      = 0,
+        .data       = (void *)&string0,
+        .data_sz    = sizeof(string0),
     }, {
-        .value 		= USB_DESC_TYPE_STRING<<8 | 0x02,
-        .index 		= 0x0409,
-        .data 		= (void *)&string2,
-        .data_sz 	= sizeof(string2),
+        .value      = USB_DESC_TYPE_STRING<<8 | 0x01,
+        .index      = 0x0409,
+        .data       = (void *)&string1,
+        .data_sz    = sizeof(string1),
+    }, {
+        .value      = USB_DESC_TYPE_STRING<<8 | 0x02,
+        .index      = 0x0409,
+        .data       = (void *)&string2,
+        .data_sz    = sizeof(string2),
     }
 };
 
 static inline void usb_fifo_read(unsigned char *dest, size_t sz)
 {
-    while (sz--) 
+    while (sz--)
         *(dest++) = UEDATX;
 }
 
@@ -271,7 +270,7 @@ static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
         } while (!(i & ((1<<TXINI) | (1<<RXOUTI))));
         if (i & (1<<RXOUTI))
             return;
-        usb_fifo_write(src, MIN(sz, 32)); 
+        usb_fifo_write(src, MIN(sz, 32));
         src += MIN(sz, 32);
         i = MIN(sz, 32);
         /* This is for the interrupt handshake */
@@ -307,7 +306,7 @@ ISR(USB_GEN_vect)
     PORT(LED1_BASE) ^= 1<<LED1_PIN;
 
     if ((status & (1<<SOFI)) && usb_configuration) {
-		if (idle_config && (++div4 & 3) == 0) {
+        if (idle_config && (++div4 & 3) == 0) {
             PORT(LED2_BASE) ^= 1<<LED2_PIN;
             UENUM = GAMEPAD_EP;
             status = UEINTX;
@@ -418,7 +417,7 @@ ISR(USB_COM_vect)
     /* SETUP packet received  */
     if (status & (1<<RXSTPI)) {
         usb_fifo_read((void *)&usb_req, sizeof(usb_req));
-		/* ACK the SETUP packet */
+        /* ACK the SETUP packet */
         UEINTX = ~((1<<RXSTPI) | (1<<RXOUTI) | (1<<TXINI));
 
         switch (usb_req.request_type) {
@@ -470,32 +469,31 @@ ISR(USB_COM_vect)
 
 int8_t usb_joypad_send(void)
 {
-	uint8_t status, timeout;
+    uint8_t status, timeout;
 
-	if (!usb_configuration) return -1;
-	status = SREG;
-	cli();
-	UENUM = GAMEPAD_EP;
-	timeout = UDFNUML + 50;
-	while (1) {
-		/* Wait for ready */
-		if (UEINTX & (1<<RWAL))
-		    break;
-		SREG = status;
-		if (!usb_configuration)
-		    return -1;
-		if (UDFNUML == timeout)
+    if (!usb_configuration) return -1;
+    status = SREG;
+    cli();
+    UENUM = GAMEPAD_EP;
+    timeout = UDFNUML + 50;
+    while (1) {
+        /* Wait for ready */
+        if (UEINTX & (1<<RWAL))
+            break;
+        SREG = status;
+        if (!usb_configuration)
             return -1;
-		status = SREG;
-		cli();
-		UENUM = GAMEPAD_EP;
-	}
+        if (UDFNUML == timeout)
+            return -1;
+        status = SREG;
+        cli();
+        UENUM = GAMEPAD_EP;
+    }
     usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
-	UEINTX = (1<<RWAL) | (1<<NAKOUTI) | (1<<RXSTPI) | (1<<STALLEDI);
-	idle_count = 0;
-	SREG = status;
-	return 0;
-
+    UEINTX = (1<<RWAL) | (1<<NAKOUTI) | (1<<RXSTPI) | (1<<STALLEDI);
+    idle_count = 0;
+    SREG = status;
+    return 0;
 }
 
 static uint8_t popcnt4(uint8_t v)

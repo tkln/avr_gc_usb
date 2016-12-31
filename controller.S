@@ -91,7 +91,7 @@ controller_probe:
 .endm
 
 /* 
- * Clutters r18 and r19.
+ * Clutters r18 and r19
  * The bit is read into r19
  * Takes 4 cycles in total
  */
@@ -115,11 +115,13 @@ controller_poll_recv_bit_f:
     nop
 .endm
 
-/* Assumes r19 zero
- * Assumes that X points to the buffer  */
+/*
+ * Assumes r19 zero
+ * Assumes that X points to the buffer
+ */
 .macro controller_poll_recv_byte
     /*
-     * Assuming F_CPU = 16 MHz, each bit on from the controller must be
+     * Assuming F_CPU = 16 MHz, each bit from the controller must be
      * sampled in 16 cycles, exactly
      */
     call controller_poll_recv_bit_f /* 5 + 9 / 16 cycles */
@@ -205,7 +207,6 @@ hiloop:
     brne hiloop
 
 poll_timeout:
-
     controller_poll_recv
 
     sei
