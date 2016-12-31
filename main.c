@@ -192,7 +192,7 @@ static const struct usb_config_desc_final {
         .bcd_hid                = 0x101,
         .country_code           = 0,
         .num_descriptors        = 1,
-        .descriptor_class_type  = 34, /* Report? */
+        .descriptor_class_type  = USB_DESC_TYPE_REPORT,
         .descriptor_length      = sizeof(joypad_report_desc),
     },
     .endpoint_desc = {
@@ -227,7 +227,7 @@ static struct usb_descriptor {
         .data       = (void *)&config_desc_final,
         .data_sz    = sizeof(config_desc_final),
     }, {
-        .value      = 0x2200, /* XXX */
+        .value      = USB_DESC_TYPE_REPORT<<8,
         .index      = GAMEPAD_INTERFACE,
         .data       = joypad_report_desc,
         .data_sz    = sizeof(joypad_report_desc),
