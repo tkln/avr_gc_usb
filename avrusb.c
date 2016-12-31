@@ -56,7 +56,7 @@ static const struct {
         .ueconx     = 1<<EPEN,
         .uecfg0x    = (1<<EPTYPE0) | (1<<EPTYPE1) | (1<<EPDIR),
         /* The endpoint size is 8, so the EPSIZE bits are zero and omited */
-        .uecfg1x    = 1<<EPBK0 | 1<<ALLOC
+        .uecfg1x    = (1<<EPBK0) | (1<<ALLOC),
     },
     { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
 };
@@ -146,7 +146,6 @@ static const uint8_t joypad_report_desc[] = {
         END_COLLECTION
     END_COLLECTION
 };
-
 
 static volatile struct joypad_report {
     uint8_t buttons_0;
@@ -295,16 +294,12 @@ ISR(USB_GEN_vect)
         UENUM = 0;
         /* Enable the endpoint */
         UECONX = 1<<EPEN;
-
         /* Set endpoint type */
         UECFG0X = USB_EP_TYPE_CONTROL<<6;
-
         /* Allocate 32 bytes for the endpoint */
         UECFG1X = (1<<EPSIZE1) | (1<<ALLOC);
-
         /* Enable received setup interrupt */
         UEIENX = (1<<RXSTPE);
-        
         usb_configuration = 0;
     }
 
@@ -397,7 +392,6 @@ static inline void usb_hid_req_set_idle(struct usb_request *usb_req)
 {
     /* Upper byte is the value */
     idle_config = (usb_req->value >> 8);
-    printf("%s: %d\n", __func__, idle_config);
     idle_count = 0;
     UEINTX = ~(1<<TXINI);
     return;
@@ -522,18 +516,14 @@ static inline void process_gc_data(uint8_t *buf, uint8_t *state)
 #define THRESH 2
     for (uint16_t i = 0; i < sizeof(struct joypad_report); ++i) {
         byte = 0;
-        byte |= (popcnt4(buf[i * 4] >> 4) > THRESH) << 7;
-        byte |= (popcnt4(buf[i * 4]) > THRESH) << 6;
-
-        byte |= (popcnt4(buf[i * 4 + 1] >> 4) > THRESH) << 5;
-        byte |= (popcnt4(buf[i * 4 + 1]) > THRESH) << 4;
-
-        byte |= (popcnt4(buf[i * 4 + 2] >> 4) > THRESH) << 3;
-        byte |= (popcnt4(buf[i * 4 + 2]) > THRESH) << 2;
-
-        byte |= (popcnt4(buf[i * 4 + 3] >> 4) > THRESH) << 1;
-        byte |= (popcnt4(buf[i * 4 + 3]) > THRESH) << 0;
-
+        byte |= (popcnt4(buf[i * 4]>>4) > THRESH)<<7;
+        byte |= (popcnt4(buf[i * 4]) > THRESH)<<6;
+        byte |= (popcnt4(buf[i * 4 + 1]>>4) > THRESH)<<5;
+        byte |= (popcnt4(buf[i * 4 + 1]) > THRESH)<<4;
+        byte |= (popcnt4(buf[i * 4 + 2]>>4) > THRESH)<<3;
+        byte |= (popcnt4(buf[i * 4 + 2]) > THRESH)<<2;
+        byte |= (popcnt4(buf[i * 4 + 3]>>4) > THRESH)<<1;
+        byte |= (popcnt4(buf[i * 4 + 3]) > THRESH)<<0;
         state[i] = byte;
     }
 }
@@ -547,10 +537,8 @@ int main(void)
     CPU_PRESCALE(0);
 
     led_init();
-
     usart_init();
     stdio_init();
-
     usb_init();
 
     PORTD &= ~(1<<0);
