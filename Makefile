@@ -1,5 +1,5 @@
-PROJECT=avrusb
-OBJS=avrusb.o gc_bang.o debug.o
+PROJECT=avrgcusb
+OBJS=main.o controller.o debug.o
 MMCU=atmega32u4
 AVRDUDE=avrdude
 PROGRAMMER=avr109

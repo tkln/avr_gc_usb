@@ -5,7 +5,7 @@
 
 #include "debug.h"
 #include "usb.h"
-#include "gc_bang.h"
+#include "controller.h"
 #include "iodefs.h"
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
