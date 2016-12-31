@@ -1,5 +1,5 @@
 PROJECT=avrusb
-OBJS=avrusb.o gc_bang.o
+OBJS=avrusb.o gc_bang.o debug.o
 SOURCES=avrusb.c
 MMCU=atmega32u4
 AVRDUDE=avrdude

@@ -3,73 +3,10 @@
 #include <util/delay.h>
 #include <stdio.h>
 
-#define LED1_BASE PIND
-#define LED1_PIN (1<<5)
-
-#define LED2_BASE PINB
-#define LED2_PIN (1<<0)
-
-#define BAUD 9600
-
-#define PORT(base) (*(unsigned char *)(&base + 2))
-#define DDR(base) (*(unsigned char *)(&base + 1))
-#define PIN(base) (*(unsigned char *)(&base))
+#include "debug.h"
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
-
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
-
-static int usart_putchar(char c, FILE *stream)
-{
-    if (c == '\n')
-        usart_putchar('\r', stream);
-
-    while (!(UCSR1A & (1<<UDRE1)))
-        ;
-
-    UDR1 = c;
-
-    return 0;
-}
-
-static char usart_getchar(FILE *stream)
-{
-    while (!(UCSR1A & (1<<RXC1)))
-        ;
-    return UDR1;
-}
-
-static FILE mystdout = FDEV_SETUP_STREAM(usart_putchar, NULL, _FDEV_SETUP_WRITE);
-static FILE mystdin = FDEV_SETUP_STREAM(NULL, usart_getchar, _FDEV_SETUP_READ);
-
-static void usart_init(void)
-{
-    const uint16_t ubbr = 2000000UL / (2 * BAUD) - 1;
-
-    UBRR1H = ubbr >> 8;
-    UBRR1L = ubbr;
-    UCSR1B = (1<<RXEN1) | (1<<TXEN1);
-    /* 8 data bits, 1 stop bit */
-    UCSR1C = (1<<UCSZ11) | (1<<UCSZ10);
-
-    DDRD |= 1<<1;
-
-    usart_putchar('A', NULL);
-    usart_putchar('\n', NULL);
-}
-
-static void stdio_init(void)
-{
-    stdout = &mystdout;
-    stdin = &mystdin;
-}
-
-static inline void halt(void)
-{
-    cli();
-    for (;;)
-        ;
-}
 
 static volatile uint8_t usb_configuration = 0;
 static volatile uint8_t idle_config = 125;
@@ -77,25 +14,25 @@ static volatile uint8_t idle_count = 0;
 
 static void usb_init(void)
 {
-    /* hw config */
+    /* HW config */
     UHWCON = (1<<UVREGE); /* enable usb pad regulator */
-    /* usb freeze */
+    /* USB freeze */
     USBCON = (1<<USBE) | (1<<FRZCLK); /* enable usb controller, freeze usb clock */
-    /* pll config */
+    /* PLL config */
     PLLCSR = (1<<PINDIV) | (1<<PLLE); /* set pll prescaler, enable the pll */
 
-    /* wait for pll to lock */
+    /* Wait for PLL to lock */
     while (!(PLLCSR) & (1<<PLOCK))
         ;
 
-    /* usb config */
+    /* USB config */
     USBCON = (1<<USBE) | (1<<OTGPADE);
-    /* attach */
+    /* Attach */
     UDCON &= ~(1<<DETACH);
 
     usb_configuration = 0;
 
-    /* enable interrupts */
+    /* Enable interrupts */
     UDIEN = (1<<EORSTE) | (1<<SOFE);
     sei();
 }
@@ -415,8 +352,8 @@ static const struct usb_config_desc_final {
     .endpoint_desc = {
         .length             = sizeof(config_desc_final.endpoint_desc),
         .descriptor_type    = USB_DESC_TYPE_ENDPOINT,
-        .endpoint_address   = JOYPAD_EP | 1<<7, /* 7th bit is set for in ep */
-        .attributes         = USB_EP_TYPE_INTERRUPT , /* intr */
+        .endpoint_address   = JOYPAD_EP | 1<<7, /* 7th bit is set for IN EP */
+        .attributes         = USB_EP_TYPE_INTERRUPT,
         .max_packet_size    = JOYPAD_EP_SIZE,
         .interval           = 1,
     },
@@ -455,7 +392,7 @@ static struct usb_descriptor {
         .data 		= (void *)&config_desc_final,
         .data_sz 	= sizeof(config_desc_final),
     }, {
-		.value 		= 0x2200, /* XXX ?? */
+		.value 		= 0x2200, /* XXX */
 		.index 		= JOYPAD_INTERFACE,
 		.data 		= joypad_report_desc,
 		.data_sz 	= sizeof(joypad_report_desc),
@@ -535,27 +472,19 @@ ISR(USB_GEN_vect)
         usb_configuration = 0;
     }
 
-    PORT(LED1_BASE) ^= LED1_PIN;
+    PORT(LED1_BASE) ^= 1<<LED1_PIN;
 
     if ((status & (1<<SOFI)) && usb_configuration) {
-        /*
-        printf("here: %s: %d: usb_config: %d, idle_config: %d, idle_count: %d\n",
-                __func__, __LINE__, usb_configuration, idle_config, idle_count); //yep
-                */
 		if (idle_config && (++div4 & 3) == 0) {
-            PORT(LED2_BASE) ^= LED2_PIN;
+            PORT(LED2_BASE) ^= 1<<LED2_PIN;
             UENUM = JOYPAD_EP;
-            //printf("here: %s: %d\n", __func__, __LINE__); //yep
             status = UEINTX;
-            printf("UEINTX: 0x%02x\n", status);
             if (status & (1<<RWAL)) {
-                //printf("here: %s: %d\n", __func__, __LINE__);
                 idle_count++;
                 if (idle_count == idle_config) {
                     idle_count = 0;
                     usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
-                    UEINTX = 0x3a; // These bits don't make any sense
-                    printf("here: %s: %d\n", __func__, __LINE__);
+                    UEINTX = 0x3a;
                 }
             }
         }
@@ -596,7 +525,6 @@ static inline void usb_req_clear_feature(struct usb_request *usb_req)
 
 static inline void usb_req_set_address(struct usb_request *usb_req)
 {
-    //PORT(LED1_BASE) &= ~LED1_PIN;
     UEINTX = ~(1<<TXINI);
     while (!(UEINTX & (1<<TXINI))) ;
     UDADDR = usb_req->value | (1<<ADDEN);
@@ -721,11 +649,9 @@ ISR(USB_COM_vect)
         printf("request_type: 0x%02x, request: 0x%02x, value: 0x%04x, index: 0x%04x, len: 0x%04x\n",
                usb_req.request_type, usb_req.request, usb_req.value,
                usb_req.index, usb_req.length);
-        PORT(LED2_BASE) &= ~LED2_PIN;
+        PORT(LED2_BASE) &= ~(1<<LED2_PIN);
         halt();
     }
-
-    /* This happens */
 }
 
 int8_t usb_joypad_send(void)
@@ -757,8 +683,6 @@ int8_t usb_joypad_send(void)
 	return 0;
 
 }
-
-#define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
 
 extern void controller_probe(void);
 extern void controller_poll(uint16_t addr);
@@ -796,21 +720,21 @@ static inline void process_gc_data(uint8_t *buf, uint8_t *state)
     }
 }
 
+#define CPU_PRESCALE(n) (CLKPR = 0x80, CLKPR = (n))
+
 int main(void)
 {
     static uint8_t controller_buffer[(sizeof(struct joypad_report)) * 4] = {0};
 
-    DDR(LED1_BASE) |= LED1_PIN;
-    DDR(LED2_BASE) |= LED2_PIN;
-
     CPU_PRESCALE(0);
+
+    led_init();
 
     usart_init();
     stdio_init();
 
     usb_init();
 
-    /* gc data: d3: PD0 */
     PORTD &= ~(1<<0);
 
     controller_probe();
