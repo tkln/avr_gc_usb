@@ -41,9 +41,9 @@ static void usb_init(void)
 }
 
 /* XXX */
-#define JOYPAD_INTERFACE 0
-#define JOYPAD_EP_SIZE 8
-#define JOYPAD_EP 3
+#define GAMEPAD_INTERFACE 0
+#define GAMEPAD_EP_SIZE 8
+#define GAMEPAD_EP 3
 
 static const struct {
     uint8_t ueconx;
@@ -53,7 +53,7 @@ static const struct {
     { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
     { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
     { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
-    [JOYPAD_EP] = {
+    [GAMEPAD_EP] = {
         .ueconx     = 1<<EPEN,
         .uecfg0x    = (1<<EPTYPE0) | (1<<EPTYPE1) | (1<<EPDIR),
         /* The endpoint size is 8, so the EPSIZE bits are zero and omited */
@@ -179,7 +179,7 @@ static const struct usb_config_desc_final {
     .interface = {
         .length                 = sizeof(config_desc_final.interface),
         .descriptor_type        = USB_DESC_TYPE_INTERFACE,
-        .interface_number       = JOYPAD_INTERFACE,
+        .interface_number       = GAMEPAD_INTERFACE,
         .alternate_setting      = 0,
         .num_endpoints          = 1,
         .interface_class        = USB_HID_DEVICE_CLASS,
@@ -199,9 +199,9 @@ static const struct usb_config_desc_final {
     .endpoint_desc = {
         .length             = sizeof(config_desc_final.endpoint_desc),
         .descriptor_type    = USB_DESC_TYPE_ENDPOINT,
-        .endpoint_address   = JOYPAD_EP | 1<<7, /* 7th bit is set for IN EP */
+        .endpoint_address   = GAMEPAD_EP | 1<<7, /* 7th bit is set for IN EP */
         .attributes         = USB_EP_TYPE_INTERRUPT,
-        .max_packet_size    = JOYPAD_EP_SIZE,
+        .max_packet_size    = GAMEPAD_EP_SIZE,
         .interval           = 1,
     },
 };
@@ -229,7 +229,7 @@ static struct usb_descriptor {
         .data_sz 	= sizeof(config_desc_final),
     }, {
 		.value 		= 0x2200, /* XXX */
-		.index 		= JOYPAD_INTERFACE,
+		.index 		= GAMEPAD_INTERFACE,
 		.data 		= joypad_report_desc,
 		.data_sz 	= sizeof(joypad_report_desc),
 	}, {
@@ -309,7 +309,7 @@ ISR(USB_GEN_vect)
     if ((status & (1<<SOFI)) && usb_configuration) {
 		if (idle_config && (++div4 & 3) == 0) {
             PORT(LED2_BASE) ^= 1<<LED2_PIN;
-            UENUM = JOYPAD_EP;
+            UENUM = GAMEPAD_EP;
             status = UEINTX;
             if (status & (1<<RWAL)) {
                 idle_count++;
@@ -475,7 +475,7 @@ int8_t usb_joypad_send(void)
 	if (!usb_configuration) return -1;
 	status = SREG;
 	cli();
-	UENUM = JOYPAD_EP;
+	UENUM = GAMEPAD_EP;
 	timeout = UDFNUML + 50;
 	while (1) {
 		/* Wait for ready */
@@ -488,7 +488,7 @@ int8_t usb_joypad_send(void)
             return -1;
 		status = SREG;
 		cli();
-		UENUM = JOYPAD_EP;
+		UENUM = GAMEPAD_EP;
 	}
     usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
 	UEINTX = (1<<RWAL) | (1<<NAKOUTI) | (1<<RXSTPI) | (1<<STALLEDI);
