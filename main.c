@@ -501,43 +501,45 @@ int8_t usb_joypad_send(void)
 
 
 /*
- * A bit in the controller state is encoded into four bits. This decodess the
- * original bit from those four bits received from the controller.
+ * A bit in the controller state is encoded into four bits. This decodess two
+ * original bits from a byte received from the controller.
  */
 
 #define ENC_BIT_THRESHOLD 2 /* This seems to work the best */
 
-static uint8_t controller_decode_nibble(uint8_t v)
+static uint8_t controller_decode_byte(uint8_t v)
 {
-    uint8_t r;
+    uint8_t b0, b1;
 
     /*
      * In the correct case the middle bits should be the most important in
      * determining the value of the encoded bit.
      */
-    r = (v & 1);
-    r += ((v>>1) & 1) * 2;
-    r += ((v>>2) & 1) * 2;
-    r += (v>>3) & 1;
+    b0 = (v & 1);
+    b0 += ((v>>1) & 1) * 2;
+    b0 += ((v>>2) & 1) * 2;
+    b0 += (v>>3) & 1;
 
-    return r > ENC_BIT_THRESHOLD;
+    b1 = ((v>>4) & 1);
+    b1 += ((v>>5) & 1) * 2;
+    b1 += ((v>>6) & 1) * 2;
+    b1 += (v>>7) & 1;
+
+    return (b0 > ENC_BIT_THRESHOLD) | ((b1 > ENC_BIT_THRESHOLD)<<1);
 }
 
-static inline void controller_decode_state(uint8_t *buf, uint8_t *state)
+static inline void controller_decode_state(uint8_t *buf,
+                                           volatile struct joypad_report *report)
 {
-    uint8_t byte;
+    unsigned char byte;
 
-    for (uint16_t i = 0; i < sizeof(struct joypad_report); ++i) {
+    for (uint16_t i = 0; i < sizeof(*report); ++i) {
         byte = 0;
-        byte |= (controller_decode_nibble(buf[i * 4]>>4))<<7;
-        byte |= (controller_decode_nibble(buf[i * 4]))<<6;
-        byte |= (controller_decode_nibble(buf[i * 4 + 1]>>4))<<5;
-        byte |= (controller_decode_nibble(buf[i * 4 + 1]))<<4;
-        byte |= (controller_decode_nibble(buf[i * 4 + 2]>>4))<<3;
-        byte |= (controller_decode_nibble(buf[i * 4 + 2]))<<2;
-        byte |= (controller_decode_nibble(buf[i * 4 + 3]>>4))<<1;
-        byte |= (controller_decode_nibble(buf[i * 4 + 3]))<<0;
-        state[i] = byte;
+        byte |= (controller_decode_byte(buf[i * 4]))<<6;
+        byte |= (controller_decode_byte(buf[i * 4 + 1]))<<4;
+        byte |= (controller_decode_byte(buf[i * 4 + 2]))<<2;
+        byte |= (controller_decode_byte(buf[i * 4 + 3]))<<0;
+        ((char *)report)[i] = byte;
     }
 }
 
@@ -571,7 +573,14 @@ int main(void)
             continue;
         }
 
-        controller_decode_state(controller_buffer, (void *)&joypad_report);
+        /*
+         * The decoded packet from the controller is used as the HID report.
+         * The HID report descriptor specifies the field order and padding
+         * identitcal to the decoded controller packet. Only minor modifications
+         * like offsetting and axis flipping are required to pass the decoded
+         * packet as a HID report.
+         */
+        controller_decode_state(controller_buffer, &joypad_report);
 
         joypad_report.buttons_0 = joypad_report.buttons_0;
         joypad_report.buttons_1 = joypad_report.buttons_1;
