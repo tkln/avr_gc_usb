@@ -12,8 +12,6 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static volatile uint8_t usb_configuration = 0;
-static volatile uint8_t idle_config = 125;
-static volatile uint8_t idle_count = 0;
 
 static void usb_init(void)
 {
@@ -44,39 +42,22 @@ static void usb_init(void)
 #define GAMEPAD_EP_SIZE 8
 #define GAMEPAD_EP 3
 
-static const struct {
+static const struct usb_ep_cfg {
     uint8_t ueconx;
     uint8_t uecfg0x;
     uint8_t uecfg1x;
-} endpoint_cfgs[] = {
-    { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
-    { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
-    { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
+} usb_ep_cfgs[] = {
+    { 
+        .ueconx = 1<<EPEN,
+        .uecfg0x = USB_EP_TYPE_CONTROL<<EPTYPE0,
+        .uecfg1x = (1<<EPSIZE1) | (1<<ALLOC),
+    },
     [GAMEPAD_EP] = {
         .ueconx     = 1<<EPEN,
-        .uecfg0x    = (1<<EPTYPE0) | (1<<EPTYPE1) | (1<<EPDIR),
+        .uecfg0x    =  (USB_EP_TYPE_INTERRUPT<<EPTYPE0) | (1<<EPDIR),
         /* The endpoint size is 8, so the EPSIZE bits are zero and omited */
         .uecfg1x    = (1<<EPBK0) | (1<<ALLOC),
     },
-    { .ueconx = 0, .uecfg0x = 0, .uecfg1x = 0 },
-};
-
-/* TODO make this progmem */
-static const struct usb_device_descriptor device_descriptor = {
-    .length             = sizeof(struct usb_device_descriptor),
-    .descriptor_type    = USB_DESC_TYPE_DEVICE,
-    .bcd_usb            = 0x0002,
-    .device_class       = 0,
-    .device_sub_class   = 0,
-    .device_protocol    = 0,
-    .max_packet_size_0  = 32,
-    .id_vendor          = 0xdead,
-    .id_product         = 0xbeef,
-    .bcd_device         = 0x0001,
-    .manufacturer_idx   = 1,
-    .product_idx        = 2,
-    .serial_number_idx  = 0,
-    .num_configurations = 1
 };
 
 static const uint8_t joypad_report_desc[] = {
@@ -158,6 +139,30 @@ static volatile struct joypad_report {
     uint8_t r;
 } __attribute__((packed)) joypad_report;
 
+enum string_descriptors {
+    STRING_DESC_IDX_LANG,
+    STRING_DESC_IDX_MANUF,
+    STRING_DESC_IDX_PROD,
+};
+
+/* TODO make this progmem */
+static const struct usb_device_descriptor device_descriptor = {
+    .length             = sizeof(struct usb_device_descriptor),
+    .descriptor_type    = USB_DESC_TYPE_DEVICE,
+    .bcd_usb            = 0x0002,
+    .device_class       = 0,
+    .device_sub_class   = 0,
+    .device_protocol    = 0,
+    .max_packet_size_0  = 32,
+    .id_vendor          = 0xdead,
+    .id_product         = 0xbeef,
+    .bcd_device         = 0x0001,
+    .manufacturer_idx   = STRING_DESC_IDX_MANUF,
+    .product_idx        = STRING_DESC_IDX_PROD,
+    .serial_number_idx  = 0,
+    .num_configurations = 1
+};
+
 static const struct usb_config_desc_final {
     struct usb_config_desc config;
     struct usb_interface_desc interface;
@@ -201,30 +206,30 @@ static const struct usb_config_desc_final {
         .endpoint_address   = GAMEPAD_EP | 1<<7, /* 7th bit is set for IN EP */
         .attributes         = USB_EP_TYPE_INTERRUPT,
         .max_packet_size    = GAMEPAD_EP_SIZE,
-        .interval           = 1,
+        .interval           = 0,
     },
 };
 
-USB_STRING_DESCRIPTOR(string0, 0x0409); /* US English language code */
-USB_STRING_DESCRIPTOR(string1, L"lörs");
-USB_STRING_DESCRIPTOR(string2, L"lärä");
+USB_STRING_DESCRIPTOR(str_desc_lang, 0x0409); /* US English language code */
+USB_STRING_DESCRIPTOR(str_desc_manuf, L"lörs");
+USB_STRING_DESCRIPTOR(str_desc_prod, L"lärä");
 
 /* TODO make this progmem */
 static struct usb_descriptor {
     uint16_t value;
     uint16_t index;
-    const unsigned char *data;
+    const void *data;
     uint8_t data_sz;
 } descriptors[] = {
     {
         .value      = USB_DESC_TYPE_DEVICE<<8, /* 0x0100 */
         .index      = 0,
-        .data       = (void *)&device_descriptor,
+        .data       = &device_descriptor,
         .data_sz    = sizeof(device_descriptor)
     }, {
         .value      = USB_DESC_TYPE_CONFIGURATION<<8, /* 0x0200 */
         .index      = 0,
-        .data       = (void *)&config_desc_final,
+        .data       = &config_desc_final,
         .data_sz    = sizeof(config_desc_final),
     }, {
         .value      = USB_DESC_TYPE_REPORT<<8,
@@ -232,22 +237,59 @@ static struct usb_descriptor {
         .data       = joypad_report_desc,
         .data_sz    = sizeof(joypad_report_desc),
     }, {
-        .value      = USB_DESC_TYPE_STRING<<8,
+        .value      = USB_DESC_TYPE_STRING<<8 | STRING_DESC_IDX_LANG,
         .index      = 0,
-        .data       = (void *)&string0,
-        .data_sz    = sizeof(string0),
+        .data       = &str_desc_lang,
+        .data_sz    = sizeof(str_desc_lang),
     }, {
-        .value      = USB_DESC_TYPE_STRING<<8 | 0x01,
+        .value      = USB_DESC_TYPE_STRING<<8 | STRING_DESC_IDX_PROD,
         .index      = 0x0409,
-        .data       = (void *)&string1,
-        .data_sz    = sizeof(string1),
+        .data       = &str_desc_prod,
+        .data_sz    = sizeof(str_desc_prod),
     }, {
-        .value      = USB_DESC_TYPE_STRING<<8 | 0x02,
+        .value      = USB_DESC_TYPE_STRING<<8 | STRING_DESC_IDX_MANUF,
         .index      = 0x0409,
-        .data       = (void *)&string2,
-        .data_sz    = sizeof(string2),
-    }
+        .data       = &str_desc_manuf,
+        .data_sz    = sizeof(str_desc_manuf),
+    }, {
+        .value      = USB_DESC_TYPE_LAST,
+        .index      = 0,
+        .data       = NULL,
+        .data_sz    = 0,
+    },
 };
+
+static inline void usb_stall(void)
+{
+    UECONX = (1<<STALLRQ) | (1<<EPEN);
+}
+
+static inline void usb_int_ack(void)
+{
+    UEINTX = ~(1<<TXINI);
+}
+
+static inline void usb_wait_in(void)
+{
+    while (!(UEINTX & (1<<TXINI)))
+        ;
+}
+
+static inline void usb_reset_endpoint(uint8_t ep)
+{
+    UERST = 1<<ep;
+    UERST = 0;
+}
+
+static inline void usb_cfg_ep(uint8_t ep, const struct usb_ep_cfg* cfg)
+{
+    UENUM = ep;
+    UECONX = cfg->ueconx;
+    if (cfg->ueconx & (1<<EPEN)) {
+        UECFG0X = cfg->uecfg0x;
+        UECFG1X = cfg->uecfg1x;
+    }
+}
 
 static inline void usb_fifo_read(unsigned char *dest, size_t sz)
 {
@@ -255,26 +297,26 @@ static inline void usb_fifo_read(unsigned char *dest, size_t sz)
         *(dest++) = UEDATX;
 }
 
-static inline void usb_fifo_write(const unsigned char *src, uint8_t sz)
+static inline void usb_fifo_write_raw(const unsigned char *src, uint8_t sz)
 {
     while (sz--)
         UEDATX = *(src++);
 }
 
-static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
+static inline void usb_fifo_write_control(const unsigned char *src, size_t sz)
 {
     uint8_t i;
     while (sz) {
-        do {
-            i = UEINTX;
-        } while (!(i & ((1<<TXINI) | (1<<RXOUTI))));
+        /* Wait for space in the fifo */
+        while (!((i = UEINTX) & ((1<<TXINI) | (1<<RXOUTI))))
+            ;
+        /* Fail if data remains */
         if (i & (1<<RXOUTI))
             return;
-        usb_fifo_write(src, MIN(sz, 32));
+        usb_fifo_write_raw(src, MIN(sz, 32));
         src += MIN(sz, 32);
         i = MIN(sz, 32);
-        /* This is for the interrupt handshake */
-        UEINTX = ~(1<<TXINI);
+        usb_int_ack();
         sz -= i;
     }
 }
@@ -283,126 +325,88 @@ static inline void usb_fifo_write_(const unsigned char *src, size_t sz)
 ISR(USB_GEN_vect)
 {
     uint8_t status;
-    static uint8_t div4 = 0;
 
     status = UDINT;
     UDINT = 0;
 
     /* End of reset interrupt */
     if (status & (1<<EORSTI)) {
-        /* Set the endpoint number */
-        UENUM = 0;
-        /* Enable the endpoint */
-        UECONX = 1<<EPEN;
-        /* Set endpoint type */
-        UECFG0X = USB_EP_TYPE_CONTROL<<6;
-        /* Allocate 32 bytes for the endpoint */
-        UECFG1X = (1<<EPSIZE1) | (1<<ALLOC);
+        usb_cfg_ep(0, &usb_ep_cfgs[0]);
         /* Enable received setup interrupt */
         UEIENX = (1<<RXSTPE);
         usb_configuration = 0;
-    }
-
-    PORT(LED1_BASE) ^= 1<<LED1_PIN;
-
-    if ((status & (1<<SOFI)) && usb_configuration) {
-        if (idle_config && (++div4 & 3) == 0) {
-            PORT(LED2_BASE) ^= 1<<LED2_PIN;
-            UENUM = GAMEPAD_EP;
-            status = UEINTX;
-            if (status & (1<<RWAL)) {
-                idle_count++;
-                if (idle_count == idle_config) {
-                    idle_count = 0;
-                    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
-                    UEINTX = 0x3a;
-                }
-            }
-        }
     }
 }
 
 static inline void usb_req_clear_feature(struct usb_request *usb_req)
 {
-    uint8_t i;
-    if (usb_req->request_type != 0x02 || usb_req->request_type != 0)
+    uint8_t i = usb_req->index & 0x7f;
+
+    if (i < 1 || i > 4)
         return;
-    i = usb_req->index & 0x7f;
-    if (i >= 1 && i <= 4) {
-        UEINTX = ~(1<<TXINI);
-        UENUM = i;
-        UECONX = (1<<STALLRQ) | (1<<EPEN);
-        UERST = (1<<i);
-        UERST = 0;
-    }
+
+    usb_int_ack();
+    UENUM = i;
+    usb_stall();
+    usb_reset_endpoint(i);
 }
 
 static inline void usb_req_set_address(struct usb_request *usb_req)
 {
-    UEINTX = ~(1<<TXINI);
-    while (!(UEINTX & (1<<TXINI))) ;
+    usb_int_ack();
+    usb_wait_in();
     UDADDR = usb_req->value | (1<<ADDEN);
 }
 
 static inline void usb_req_get_descriptor(struct usb_request *usb_req)
 {
-    /* Look for the matching descriptor */
-    uint8_t i;
+    uint8_t len;
     struct usb_descriptor *desc;
 
-    for (i = 0; ; ++i) {
-        if (i >= ARRAY_LEN(descriptors)) {
-            UECONX = (1<<STALLRQ) | (1<<EPEN);
-            printf("no descriptor found\n");
-            return;
-        }
-        desc = descriptors + i;
+    /* Look for the matching descriptor */
+    for (desc = descriptors; desc->value != USB_DESC_TYPE_LAST; ++desc) {
         if (usb_req->value == desc->value && usb_req->index == desc->index)
             break;
     }
-    /* Wait for the host to get ready to accept data */
-    uint8_t len = MIN(usb_req->length, 255);
+
+    if (desc->value == USB_DESC_TYPE_LAST) {
+        usb_stall();
+        printf("no descriptor found\n");
+        return;
+    }
+
+    len = MIN(usb_req->length, 255);
     len = MIN(len, desc->data_sz);
-    usb_fifo_write_(desc->data, len);
+    usb_fifo_write_control(desc->data, len);
 }
 
 static inline void usb_req_set_configuration(struct usb_request *usb_req)
 {
     uint8_t i;
-    if (usb_req->request_type != 0)
-        return;
+
     usb_configuration = usb_req->value;
-    UEINTX = ~(1<<TXINI);
+    usb_int_ack();
+
     /* Configure the endpoints */
-    for (i = 1; i < 5; ++i) {
-        UENUM = i;
-        UECONX = endpoint_cfgs[i].ueconx;
-        if (endpoint_cfgs[i].ueconx) {
-            UECFG0X = endpoint_cfgs[i].uecfg0x;
-            UECFG1X = endpoint_cfgs[i].uecfg1x;
-        }
+    for (i = 1; i < ARRAY_LEN(usb_ep_cfgs); ++i) {
+        usb_cfg_ep(i, usb_ep_cfgs + i);
+        usb_reset_endpoint(i);
     }
-    /* Reset all endpoints, except 0 */
-    UERST = 0x1e;
-    UERST = 0;
-    return;
 }
 
 static inline void usb_hid_req_set_idle(struct usb_request *usb_req)
 {
-    /* Upper byte is the value */
-    idle_config = (usb_req->value >> 8);
-    idle_count = 0;
-    UEINTX = ~(1<<TXINI);
-    return;
+    /* Idle support is optional for gamepads */
+    if (usb_req->value>>8 != 0)
+        usb_stall();
+    usb_int_ack();
 }
 
 static inline void usb_hid_req_get_report(struct usb_request *usb_req)
 {
-    while (!(UEINTX & (1<<TXINI))) ;
-
-    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
-    UEINTX = ~(1<<TXINI);
+    usb_wait_in();
+    usb_fifo_write_raw((void *)&joypad_report, sizeof(joypad_report));
+    usb_int_ack();
 }
 
 /* Endpoint interrupt */
@@ -489,9 +493,8 @@ int8_t usb_joypad_send(void)
         cli();
         UENUM = GAMEPAD_EP;
     }
-    usb_fifo_write((void *)&joypad_report, sizeof(joypad_report));
+    usb_fifo_write_raw((void *)&joypad_report, sizeof(joypad_report));
     UEINTX = (1<<RWAL) | (1<<NAKOUTI) | (1<<RXSTPI) | (1<<STALLEDI);
-    idle_count = 0;
     SREG = status;
     return 0;
 }

@@ -31,6 +31,7 @@ enum usb_descriptor_type {
     USB_DESC_TYPE_HID           = 0x21,
     USB_DESC_TYPE_REPORT        = 0x22,
     USB_DESC_TYPE_PHYSICAL      = 0x23,
+    USB_DESC_TYPE_LAST          = 0xffff,
 };
 
 struct usb_device_descriptor {
