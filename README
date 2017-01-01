@@ -1,0 +1,23 @@
+GameCube controller USB adapter firmware
+
+Build dependencies:
+
+- avr-gcc
+- avr-libc
+- avrdude
+
+Building and flashing:
+
+$ make
+$ make flash 
+
+The Makefile assumes by default atmega32u4 with avr109 bootloader
+at /dev/ttyACM0. These can be modified by setting the MCU,
+PROGRAMMER and PORT variables accordingly.
+
+Notes on compatibility:
+
+The device has been successfully tested with Linux. It probably won't
+work on Windows, because I think Windows requires USB devices to have
+valid vendor and product ids. It should work once the placeholder ids
+are replaced.
