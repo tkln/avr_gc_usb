@@ -565,7 +565,7 @@ int main(void)
     for (;;) {
         _delay_ms(8);
 
-        controller_poll((uint16_t)&controller_buffer);
+        controller_poll(&controller_buffer, sizeof(controller_buffer));
 
         if (controller_buffer[0] != 0x11) {
             _delay_ms(12);
